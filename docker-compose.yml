@@ -1,0 +1,34 @@
+# One command: docker compose up --build   ->  http://localhost:8080
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: movies
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d movies"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  api:
+    build: ./backend
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://postgres:postgres@db:5432/movies
+      JWT_SECRET: ${JWT_SECRET:-demo-secret-change-me-in-real-life}
+      CORS_ORIGIN: http://localhost:8080
+    depends_on:
+      db: { condition: service_healthy }
+    # Create tables + admin/demo users + sample movies, then start the API.
+    command: sh -c "node dist/seed.js && node dist/server.js"
+
+  web:
+    build: ./frontend
+    ports: ["8080:80"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
